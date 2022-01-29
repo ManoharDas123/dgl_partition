@@ -426,7 +426,7 @@ class NDArrayPartition(object):
     the nodes are stored in contiguous memory. This converts an existing
     range based partitioning (e.g. from a
     dgl.distributed.graph_partition_book.RangePartitionBook)
-    'max_node_map', to an NDArrayPartition 'part'.
+    'max_part_config', to an NDArrayPartition 'part'.
 
     >>> part_range = [0]
     >>> for part in part_book.metadata():

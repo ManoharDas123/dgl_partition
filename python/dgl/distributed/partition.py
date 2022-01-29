@@ -1,5 +1,6 @@
 """Functions for partitions. """
-
+import networkx as nx
+import matplotlib.pyplot as plt
 import json
 import os
 import time
@@ -79,6 +80,7 @@ def load_partition(part_config, part_id):
     List[str]
         The edge types
     '''
+
     config_path = os.path.dirname(part_config)
     relative_to_config = lambda path: os.path.join(config_path, path)
 
@@ -92,6 +94,7 @@ def load_partition(part_config, part_id):
     node_feats = load_tensors(relative_to_config(part_files['node_feats']))
     edge_feats = load_tensors(relative_to_config(part_files['edge_feats']))
     graph = load_graphs(relative_to_config(part_files['part_graph']))[0][0]
+    
     # In the old format, the feature name doesn't contain node/edge type.
     # For compatibility, let's add node/edge types to the feature names.
     node_feats1 = {}
@@ -291,9 +294,12 @@ def _set_trainer_ids(g, sim_g, node_parts):
             trainer_id = F.gather_row(g.nodes[dst_type].data['trainer_id'], g.edges(etype=etype)[1])
             g.edges[etype].data['trainer_id'] = trainer_id
 
-def partition_graph(g, graph_name, num_parts, out_path, num_hops=1, part_method="metis",
+
+
+def partition_graph(g, num_parts, graph_name, out_path='output/', num_hops=1, part_method="metis",
                     reshuffle=True, balance_ntypes=None, balance_edges=False, return_mapping=False,
                     num_trainers_per_machine=1):
+    
     ''' Partition a graph for distributed training and store the partitions on files.
 
     The partitioning occurs in three steps: 1) run a partition algorithm (e.g., Metis) to
@@ -524,6 +530,12 @@ def partition_graph(g, graph_name, num_parts, out_path, num_hops=1, part_method=
             print('The graph has {} node types and balance among {} types'.format(
                 len(g.ntypes), len(F.unique(bal_ntypes))))
             # We now no longer need them.
+
+            ng = sim_g.to_networkx().to_undirected()
+            pos = nx.kamada_kawai_layout(ng)
+            nx.draw(ng, pos, with_labels=True, node_color=[[.7, .7, .7]])
+            plt.savefig("graph_{}.png".format(i))
+
             for key in g.ntypes:
                 del g.nodes[key].data['bal_ntype']
             del sim_g.ndata['bal_ntype']
@@ -712,7 +724,7 @@ def partition_graph(g, graph_name, num_parts, out_path, num_hops=1, part_method=
         for etype in edge_map_val:
             val = np.concatenate([np.array(l) for l in edge_map_val[etype]])
             assert np.all(val[:-1] <= val[1:])
-
+    
     start = time.time()
     ntypes = {ntype:g.get_ntype_id(ntype) for ntype in g.ntypes}
     etypes = {etype:g.get_etype_id(etype) for etype in g.etypes}
@@ -837,7 +849,7 @@ def partition_graph(g, graph_name, num_parts, out_path, num_hops=1, part_method=
     with open('{}/{}.json'.format(out_path, graph_name), 'w') as outfile:
         json.dump(part_metadata, outfile, sort_keys=True, indent=4)
     print('Save partitions: {:.3f} seconds'.format(time.time() - start))
-
+    
     num_cuts = sim_g.number_of_edges() - tot_num_inner_edges
     if num_parts == 1:
         num_cuts = 0
